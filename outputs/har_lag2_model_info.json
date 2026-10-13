@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "model_name": "HAR + Lag 2",
+  "model_type": "LinearRegression",
+  "saved_at_utc": "2026-10-13T02:35:16.214533+00:00",
+  "target": "下一交易日对数实现波动率（target）",
+  "feature_order": [
+    "log_rv_day",
+    "log_rv_lag2",
+    "log_rv_week",
+    "log_rv_month"
+  ],
+  "intercept": -0.5954269054835386,
+  "coefficients": {
+    "log_rv_day": 0.31400998059698076,
+    "log_rv_lag2": 0.14920735950273062,
+    "log_rv_week": 0.26188392856088477,
+    "log_rv_month": 0.2200870909411834
+  },
+  "training": {
+    "dataset": "training + validation",
+    "n_rows": 3693,
+    "feature_date_start": "2000-02-02 00:00:00+00:00",
+    "feature_date_end": "2014-10-21 23:00:00+00:00",
+    "target_date_start": "2000-02-03 00:00:00+00:00",
+    "target_date_end": "2014-10-22 23:00:00+00:00"
+  },
+  "evaluation": {
+    "dataset": "final test",
+    "n_rows": 924,
+    "target_date_start": "2014-10-27 00:00:00+00:00",
+    "target_date_end": "2018-06-26 23:00:00+00:00",
+    "mse": 0.42265509901438325,
+    "mae": 0.5118518671397189,
+    "mse_improvement_vs_persistence": 0.11603381258373964,
+    "mae_improvement_vs_persistence": 0.07157741152551764,
+    "mse_improvement_vs_har": 0.014868837864784084,
+    "mae_improvement_vs_har": 0.0061048290054201825
+  },
+  "software": {
+    "scikit_learn": "1.9.0"
+  },
+  "model_file": "har_lag2_model.joblib"
+}
