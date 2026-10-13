@@ -1,0 +1,11 @@
+# Local and generated files
+.DS_Store
+.vscode/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+~$*
+项目报告.docx
+# Unzip the included archive locally before running
+datasets/*.csv
