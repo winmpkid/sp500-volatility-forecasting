@@ -17,7 +17,7 @@ class ModelArtifactTests(unittest.TestCase):
     def setUpClass(cls):
         if not MODEL_PATH.exists() or not INFO_PATH.exists():
             raise unittest.SkipTest(
-                "请先运行 final_test.py 生成模型文件。"
+                "Run final_test.py first to generate the model artifacts."
             )
 
         cls.model = joblib.load(MODEL_PATH)

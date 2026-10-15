@@ -80,7 +80,7 @@ def run_time_series_cv(
 
         y_validation = fold_validation["target"]
 
-        # 每一折都重新计算持续性基准
+        # Recompute the persistence baseline in every fold.
         persistence_prediction = fold_validation[
             "log_rv_day"
         ].to_numpy()
@@ -97,7 +97,7 @@ def run_time_series_cv(
             "mae": persistence_results["mae"],
         })
 
-        # 每一折都重新训练全部特征组合
+        # Retrain every feature specification in every fold.
         for model_name, features in FEATURE_SETS.items():
             results = evaluate_feature_set(
                 train_data=fold_train,
@@ -114,7 +114,7 @@ def run_time_series_cv(
 
     cv_results = pd.DataFrame(rows)
 
-    # 找到每一折对应的持续性基准误差
+    # Match each fold with its persistence baseline error.
     fold_baseline = (
         cv_results.loc[
             cv_results["model"].eq("Persistence"),
@@ -132,7 +132,7 @@ def run_time_series_cv(
         how="left",
     )
 
-    # 每个模型在每一折相对基准改善多少
+    # Calculate each model's fold-level improvement over persistence.
     cv_results["mse_improvement"] = (
         cv_results["baseline_mse"]
         - cv_results["mse"]
@@ -163,7 +163,7 @@ def run_benchmark():
         n_splits=5,
     )
 
-    print("\n各折 MSE：")
+    print("\nMSE by fold:")
     print(
         cv_results.pivot(
             index="fold",
@@ -183,7 +183,7 @@ def run_benchmark():
         )
     )
 
-    print("\n时间序列交叉验证汇总：")
+    print("\nTime-series cross-validation summary:")
     print(
         cv_summary.to_string(
             formatters={
@@ -236,7 +236,7 @@ def run_benchmark():
         baseline_mae - result_table["mae"]
     ) / baseline_mae
 
-    print("\n模型消融结果：")
+    print("\nFeature ablation results:")
     print(
         result_table.to_string(
             formatters={
@@ -264,15 +264,15 @@ def run_benchmark():
     )
 
     print(
-        f"\n加入 Week 后的 MSE 改进："
+        f"\nMSE improvement after adding Week: "
         f"{week_improvement:.2%}"
     )
     print(
-        f"加入 Month 后的 MSE 改进："
+        f"MSE improvement after adding Month: "
         f"{month_improvement:.2%}"
     )
     print(
-        f"加入 Lag 2 后的 MSE 改进："
+        f"MSE improvement after adding Lag 2: "
         f"{lag2_improvement:.2%}"
     )
 

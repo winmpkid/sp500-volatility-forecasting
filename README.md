@@ -1,44 +1,44 @@
-# 基于 HAR-RV 的标普 500 指数实现波动率预测
+# S&P 500 Realized Volatility Forecasting with HAR-RV
 
-本项目用日度实现方差衡量标普 500 指数的波动，预测下一交易日的对数实现方差。建模从 Persistence 持续性基准出发，比较 HAR-RV 的 Day、Week、Month 特征，再根据验证集残差诊断检验 Lag2 是否有用。特征和模型在开发阶段确定，独立测试集用于最后的样本外评估。
+This project forecasts the next trading day's log realized variance for the S&P 500 Index. It starts with a persistence benchmark, evaluates the daily, weekly, and monthly components of a heterogeneous autoregressive realized volatility model, and uses validation residual diagnostics to test whether a second-lag feature adds predictive information.
 
-最终模型为 HAR + Lag2。独立测试集上，其均方误差（MSE）和平均绝对误差（MAE）相较 Persistence 分别下降约 11.60% 和 7.16%；相较基础 HAR-RV，分别下降约 1.49% 和 0.61%。Lag2 的增益较小，测试期残差也仍存在自相关。
+The selected specification is HAR + Lag 2. On the independent test set, it reduces mean squared error by 11.60% and mean absolute error by 7.16% relative to persistence. Compared with the standard HAR-RV model, the improvements are 1.49% and 0.61%, respectively. The Lag 2 contribution is therefore best described as a small but consistent incremental gain. Significant test-period residual autocorrelation remains.
 
-## 项目目标
+## Objectives
 
-- 仅用预测时点可获得的数据构造特征；
-- 按时间顺序比较 Persistence、基础 HAR-RV 和 HAR + Lag2；
-- 结合预测误差和残差诊断判断增加特征是否有用；
-- 保存模型、元数据和预测记录，便于复查与复现。
+- Construct every feature from information available at the forecast origin.
+- Compare persistence, standard HAR-RV, and HAR + Lag 2 in chronological order.
+- Combine forecast errors with residual diagnostics when evaluating additional features.
+- Save the fitted model, metadata, and prediction history for reproducibility.
 
-## 数据与预测目标
+## Data and Forecast Target
 
-项目数据位于：
+The source data is stored at:
 
 ```text
 datasets/oxfordmanrealizedvolatilityindices.csv
 ```
 
-当前建模对象为 `.SPX`。代码将原始变量 `rv5` 作为日度实现方差 RV，预测目标为：
+The model uses `.SPX` observations. The source variable `rv5` is treated as daily realized variance, and the target is:
 
 ```text
 target(t) = log(RV(t+1))
 ```
 
-对数变换压缩了实现方差的取值范围。本文将“波动”用于描述研究对象；模型中的 RV 及误差指标均以实现方差及其对数为口径。
+The log transformation compresses the scale of realized variance. Although the project title uses the common phrase “volatility forecasting,” the model target and reported error metrics are defined on realized variance and log realized variance.
 
-## 特征构造
+## Feature Construction
 
-预测 `log(RV(t+1))` 时，只使用 t 日及以前能够获得的信息：
+When forecasting `log(RV(t+1))`, the model uses only information available through date `t`:
 
-| 特征 | 定义 | 含义 |
+| Feature | Definition | Interpretation |
 |---|---|---|
-| `log_rv_day` | `log(RV(t))` | 当日波动信息 |
-| `log_rv_lag2` | `log(RV(t-1))` | 相对预测目标滞后两个交易日 |
-| `log_rv_week` | `log(mean(RV(t-4:t)))` | 最近 5 个交易日平均实现方差的对数 |
-| `log_rv_month` | `log(mean(RV(t-21:t)))` | 最近 22 个交易日平均实现方差的对数 |
+| `log_rv_day` | `log(RV(t))` | Current daily realized variance |
+| `log_rv_lag2` | `log(RV(t-1))` | Realized variance two trading days behind the target |
+| `log_rv_week` | `log(mean(RV(t-4:t)))` | Log of mean realized variance over the latest 5 trading days |
+| `log_rv_month` | `log(mean(RV(t-21:t)))` | Log of mean realized variance over the latest 22 trading days |
 
-最终模型形式为：
+The selected model is:
 
 ```text
 log(RV(t+1))
@@ -50,48 +50,50 @@ log(RV(t+1))
     + error(t+1)
 ```
 
-周度和月度特征先对实现方差求平均，再取对数。训练与预测共用特征计算函数，保持数据口径一致。
+The weekly and monthly components first average realized variance and then apply the logarithm. Training and prediction use the same feature-building functions.
 
-## 为什么使用时间序列验证
+## Why Chronological Validation Is Required
 
-随机交叉验证可能用较晚的数据训练，再预测较早的样本，不符合实际预测顺序。本项目的每行特征截至 t 日，目标是 t+1 日；随机拆分相邻记录，还可能让验证目标出现在训练特征中。
+Random cross-validation can train on later observations and evaluate on earlier observations, which does not reproduce a real forecasting workflow. Because each feature row ends on date `t` and its target occurs on `t+1`, randomly splitting adjacent rows can also allow a validation target to appear inside a training feature window.
 
-项目采用以下措施减少信息泄漏：
+The project limits leakage as follows:
 
-- 按日期顺序，以 60%、20%、20% 为初始比例划分训练集、验证集和测试集，并剔除目标跨越边界的记录；
-- 划分边界同时检查特征日期和目标日期；
-- 开发阶段使用 `TimeSeriesSplit(n_splits=5, gap=1)`；
-- 测试集不参与特征选择和模型选择；
-- 模型确定后仅进行一次最终测试。
+- It creates initial 60%, 20%, and 20% training, validation, and test periods in date order.
+- It checks both feature dates and target dates at split boundaries.
+- Development-stage cross-validation uses `TimeSeriesSplit(n_splits=5, gap=1)`.
+- The test set is excluded from feature and model selection.
+- The selected model is evaluated on the independent test set only after the specification is frozen.
 
-## 模型选择依据
+## Model Selection Evidence
 
-Persistence 直接用当日 `log(RV)` 预测下一交易日。以此为基准，开发阶段依次比较 Day、Day + Week 和 Day + Week + Month，检查周度、月度特征是否降低预测误差。
+The persistence benchmark uses the current `log(RV)` as the forecast for the next trading day. The development process then compares Day, Day + Week, and Day + Week + Month to determine whether the weekly and monthly components reduce forecast error.
 
-基础 HAR-RV 的验证集残差在第二滞后期的 ACF 和 PACF 约为 0.088，因此将 `log_rv_lag2` 列为候选特征。加入 Lag2 后，验证集 5 阶和 10 阶 Ljung-Box 检验的 p 值从 0.05 以下升至 0.05 以上，即在 5% 显著性水平下，这两项检验不再拒绝残差无自相关的原假设。这并不说明残差完全独立。
+The standard HAR-RV model's validation residuals have lag-2 ACF and PACF values of approximately 0.088, while lags 3 and 4 are close to zero. This motivates `log_rv_lag2` as a candidate rather than adding arbitrary extra lags. After adding Lag 2, the validation residual Ljung-Box p-values at lags 5 and 10 rise from below 0.05 to above 0.05. At the 5% level, those two tests no longer reject the null of no residual autocorrelation, although this does not establish complete residual independence.
 
-按当前代码计算，加入 Lag2 后的五折平均 MSE 从约 0.350979 降至 0.345829，下降约 1.47%，五个验证折的 MSE 均下降。该比较保留 Day、Week 和 Month，仅增加 Lag2，支持在当前设定下保留这一特征。
+Across five chronological validation folds, the mean MSE decreases from approximately 0.350979 for standard HAR-RV to 0.345829 for HAR + Lag 2, an improvement of about 1.47%. MSE decreases in all five folds. The comparison holds Day, Week, and Month fixed and changes only the Lag 2 component.
 
-残差诊断用于提出候选特征，交叉验证和消融比较用于选模。独立测试只检验已确定的模型，不用于反复调整特征。
+Residual diagnostics generate candidate features. Cross-validation and ablation evidence determine whether to retain them. The independent test set evaluates the frozen specification and is not used for repeated feature tuning.
 
-## 最终测试结果
+## Final Test Results
 
-模型确定后，合并训练集和验证集重新拟合，再在 924 条独立测试样本上评估。下表指标均在对数实现方差尺度上计算，百分比表示误差相对 Persistence 的降幅。
+After model selection, the training and validation periods are combined for refitting. The final evaluation contains 924 independent test observations. All error metrics are calculated on the log realized variance scale.
 
-| 模型 | MSE | MAE | MSE 降幅 | MAE 降幅 |
+| Model | MSE | MAE | MSE Improvement vs. Persistence | MAE Improvement vs. Persistence |
 |---|---:|---:|---:|---:|
 | Persistence | 0.478135 | 0.551313 | 0.00% | 0.00% |
 | HAR | 0.429034 | 0.514996 | 10.27% | 6.59% |
-| HAR + Lag2 | **0.422655** | **0.511852** | **11.60%** | **7.16%** |
+| HAR + Lag 2 | **0.422655** | **0.511852** | **11.60%** | **7.16%** |
 
-相较基础 HAR，HAR + Lag2 的 MSE 下降约 1.49%，MAE 下降约 0.61%。验证、交叉验证和最终测试的改善方向一致，说明 Lag2 在现有样本中有小幅增益；是否具有统计显著性，还需进一步检验。
+Relative to standard HAR-RV, HAR + Lag 2 reduces MSE by approximately 1.49% and MAE by approximately 0.61%. Validation, time-series cross-validation, and final testing all show improvement in the same direction. Statistical significance would require additional forecast-comparison testing.
 
-## 项目结构
+## Repository Structure
 
 ```text
-Quant/
+sp500-volatility-forecasting/
 ├── reports/
-│   └── HAR_RV项目报告.docx
+│   ├── HAR_RV_Project_Report.docx
+│   └── archive/
+│       └── HAR_RV_Project_Report_Early_Version.docx
 ├── datasets/
 │   └── oxfordmanrealizedvolatilityindices.csv
 ├── outputs/
@@ -118,50 +120,46 @@ Quant/
 └── README.md
 ```
 
-主要模块说明：
-
-| 文件 | 作用 |
+| Module | Purpose |
 |---|---|
-| `data.py` | 读取原始数据 |
-| `features.py` | 构造训练和预测特征 |
-| `validation.py` | 按时间顺序划分训练、验证和测试数据 |
-| `models.py` | 训练模型并保存模型及元数据 |
-| `evaluation.py` | 计算 MSE 和 MAE |
-| `diagnostics.py` | 描述性统计、ACF、PACF、Q-Q 图和 Ljung-Box 检验 |
-| `benchmark.py` | 特征消融、时间序列交叉验证和候选模型比较 |
-| `final_test.py` | 独立测试、最终诊断和模型保存 |
-| `predict.py` | 加载已保存模型并生成下一交易日预测 |
+| `data.py` | Load the source data |
+| `features.py` | Build training and prediction features |
+| `validation.py` | Create chronological training, validation, and test periods |
+| `models.py` | Fit models and save model artifacts |
+| `evaluation.py` | Calculate MSE and MAE |
+| `diagnostics.py` | Produce descriptive statistics, ACF, PACF, Q-Q, and Ljung-Box diagnostics |
+| `benchmark.py` | Run feature ablation, time-series cross-validation, and candidate-model comparisons |
+| `final_test.py` | Run the independent final evaluation and save the selected model |
+| `predict.py` | Load the saved model and produce the next historical forecast |
 
-## 环境安装
+## Environment Setup
 
-本项目已在 Python 3.14.6 环境完成验证。在项目根目录创建虚拟环境并安装依赖：
+The project has been verified with Python 3.14.6. From the repository root:
 
 ```bash
-cd /Users/wimpykid/Quant
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-模型信息文件记录了保存时的 scikit-learn 版本。加载时使用相同版本，可减少序列化兼容问题。
+The model metadata records the scikit-learn version used when the artifact was saved. Loading the model with the same version reduces serialization compatibility risk.
 
-## 运行方法
+## Run the Project
 
-在项目根目录运行完整流程：
+Run the complete workflow from the repository root:
 
 ```bash
-cd /Users/wimpykid/Quant
 python run_pipeline.py --stage all
 ```
 
-默认使用无界面绘图模式，适合自动化运行。如果需要显示图形窗口：
+The default uses a headless plotting backend. To display Matplotlib windows:
 
 ```bash
 python run_pipeline.py --stage all --interactive-plots
 ```
 
-如只需重新运行某个阶段，可使用：
+Individual stages are also available:
 
 ```bash
 python run_pipeline.py --stage diagnostics
@@ -170,110 +168,103 @@ python run_pipeline.py --stage final-test
 python run_pipeline.py --stage predict
 ```
 
-### 1. 查看训练期统计和收益率诊断
+### Training-Period Diagnostics
 
 ```bash
-cd src/volatility
-python cli.py
+python src/volatility/cli.py
 ```
 
-### 2. 运行特征消融和时间序列交叉验证
+### Feature Ablation and Time-Series Cross-Validation
 
 ```bash
-python benchmark.py
+python src/volatility/benchmark.py
 ```
 
-该步骤仅使用开发数据。完成模型选择后，再运行最终测试；不要根据测试结果反复调整特征。
+This stage uses development data only. Complete model selection before running the final test, and do not repeatedly tune the specification against test results.
 
-### 3. 进行最终测试并保存模型
+### Final Test and Model Export
 
 ```bash
-MPLBACKEND=Agg python final_test.py
+MPLBACKEND=Agg python src/volatility/final_test.py
 ```
 
-执行后会更新：
+This updates:
 
 ```text
 outputs/har_lag2_model.joblib
 outputs/har_lag2_model_info.json
 ```
 
-其中：
+The joblib file contains the fitted linear regression. The JSON file records feature order, coefficients, training and test periods, software version, and evaluation metrics.
 
-- `har_lag2_model.joblib` 保存可直接加载的回归模型；
-- `har_lag2_model_info.json` 保存特征顺序、回归系数、训练区间、测试区间和评估指标。
-
-### 4. 使用已保存模型生成预测
+### Generate a Prediction
 
 ```bash
-python predict.py
+python src/volatility/predict.py
 ```
 
-预测结果保存至：
+Prediction history is written to:
 
 ```text
 outputs/predictions.csv
 ```
 
-预测记录按特征日期和模型保存时间去重。同一保存版本对同一特征日期重复预测时，会更新原记录；重新训练并保存的模型按新版本保留记录。
+Runs are deduplicated by feature date and model save time. Repeating a prediction with the same model version updates the existing record; retraining and saving a new model version retains a separate record.
 
-## 自动化测试
-
-回到项目根目录后运行：
+## Automated Tests
 
 ```bash
-cd /Users/wimpykid/Quant
 python -m unittest discover -s tests -v
 ```
 
-测试检查以下行为：
+The tests verify that:
 
-- 预测特征保留最新的有效数据日期；
-- 训练特征会删除尚无下一日目标的最后一行；
-- `target` 确实等于下一条观测的 `log(RV)`；
-- 训练、验证和测试边界不存在未来目标重叠；
-- 保存模型的特征数量和顺序与 JSON 元数据一致；
-- 保存后的模型能够重新加载并执行预测。
+- Prediction features retain the latest valid feature date.
+- Training features omit the final row when its next-day target is unavailable.
+- `target` equals the next observation's `log(RV)`.
+- Chronological split boundaries do not overlap future targets.
+- Saved model feature counts and order match the JSON metadata.
+- The saved model can be loaded and used for prediction.
 
-## 预测值的尺度
+## Converting Predictions Back to the Original Scale
 
-模型直接输出下一交易日的对数实现方差预测值：
+The direct model output is next-trading-day log realized variance:
 
 ```text
 predicted_log_rv
 ```
 
-对预测值取指数，得到原方差尺度上的数值：
+Exponentiation returns the value to the realized variance scale:
 
 ```python
 predicted_rv = np.exp(predicted_log_rv)
 ```
 
-再取平方根，得到对应的波动率数值：
+Taking the square root gives the corresponding daily volatility value:
 
 ```python
 predicted_volatility = np.sqrt(predicted_rv)
 ```
 
-当前预测记录的特征时间为 `2018-06-26T23:00:00+00:00`，对应原始数据中的 `2018-06-27 00:00:00+01:00`。代码统一使用 UTC 时间。因此，`predictions.csv` 保存的是历史样本末端的下一交易日预测，不是当前市场预测。
+The current saved prediction uses the feature timestamp `2018-06-26T23:00:00+00:00`, corresponding to `2018-06-27 00:00:00+01:00` in the source data. The code normalizes timestamps to UTC. This is a forecast at the end of the historical sample, not a live market forecast.
 
-## 模型局限
+## Limitations
 
-- 最终测试残差的 Ljung-Box 检验仍显著，说明模型尚未充分捕捉测试期的时间依赖；
-- 线性模型对非线性关系和市场状态切换的刻画有限，也未单独纳入 VIX、成交量、宏观变量、跳跃或杠杆效应；
-- `exp(predicted_log_rv)` 不直接等于原尺度的条件均值。若需要均值预测，应评估对数变换的偏差修正；
-- 保存的模型仅用训练集和验证集拟合。如用于部署，可在冻结特征和模型设定后，另行用全部可用历史数据训练部署版本，并保留当前评估记录；
-- 历史回测结果不代表未来表现，本项目不构成投资建议。
+- Significant Ljung-Box results remain in the final test residuals, so the model does not capture all test-period time dependence.
+- The linear specification has limited ability to represent nonlinear relationships or regime changes and does not include VIX, volume, macroeconomic variables, jumps, or leverage effects.
+- `exp(predicted_log_rv)` is not automatically the conditional mean on the original scale. Mean forecasts may require log-transformation bias correction.
+- The saved model is fitted on the training and validation periods. A deployment version could be refitted on all available history after freezing the specification, while preserving the current evaluation record.
+- Historical backtest performance does not guarantee future results. This project is not investment advice.
 
-## 后续改进
+## Possible Extensions
 
-- 增加 QLIKE 等波动率专用评价指标；
-- 使用 Diebold-Mariano 检验比较模型预测误差；
-- 比较 Ridge、Lasso、GARCH、EGARCH 或非线性模型；
-- 加入外部市场变量并继续使用相同的时间序列验证框架；
-- 扩充时间划分边界、无效数据和预测记录去重的测试；
-- 对滚动窗口和扩展窗口重新训练方案进行比较。
+- Add volatility-specific loss functions such as QLIKE.
+- Apply a Diebold-Mariano test to compare forecast errors.
+- Compare Ridge, Lasso, GARCH, EGARCH, and nonlinear models.
+- Add external market variables while retaining chronological validation.
+- Expand tests for split boundaries, invalid observations, and prediction-history deduplication.
+- Compare rolling-window and expanding-window refitting schemes.
 
-## 项目结论
+## Conclusion
 
-在当前样本和验证设定下，HAR-RV 的测试误差低于 Persistence，加入 Lag2 后进一步小幅下降。现有结果支持保留 Lag2，但尚不能据此判断其在其他市场阶段的表现；测试期残差自相关仍是需要继续处理的问题。
+Under the current sample and validation design, HAR-RV outperforms persistence and Lag 2 provides a further small reduction in forecast error. The evidence supports retaining Lag 2 in this specification, but it does not establish that the feature will remain useful in other market regimes. Residual autocorrelation in the independent test period remains the main unresolved modeling limitation.

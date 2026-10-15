@@ -37,14 +37,14 @@ def relative_improvement(reference_value, candidate_value):
 
 
 def run_final_test():
-    """冻结模型后，在未参与选模的测试集上进行一次最终评估。"""
+    """Evaluate the frozen specification once on the untouched test set."""
     raw_data = load_raw_data()
     model_data = build_features(raw_data)
     train_data, validation_data, test_data = chronological_split(
         model_data
     )
 
-    # 选模已经结束，因此把训练集和验证集合并，用全部开发数据重训。
+    # Model selection is complete, so refit on all development data.
     development_data = (
         pd.concat(
             [train_data, validation_data],
@@ -93,14 +93,14 @@ def run_final_test():
     lag2_mse = result_table.loc["HAR + Lag 2", "mse"]
     lag2_mae = result_table.loc["HAR + Lag 2", "mae"]
 
-    print("\n最终测试集范围：")
+    print("\nFinal test period:")
     print(
-        f"{test_data['target_date'].min()} 至 "
+        f"{test_data['target_date'].min()} to "
         f"{test_data['target_date'].max()}"
     )
-    print(f"测试样本数：{len(test_data)}")
+    print(f"Test observations: {len(test_data)}")
 
-    print("\n最终测试集结果：")
+    print("\nFinal test results:")
     print(
         result_table.to_string(
             formatters={
@@ -113,11 +113,11 @@ def run_final_test():
     )
 
     print(
-        "\nHAR + Lag 2 相对原始 HAR 的 MSE 改进："
+        "\nHAR + Lag 2 MSE improvement over standard HAR: "
         f"{relative_improvement(har_mse, lag2_mse):.2%}"
     )
     print(
-        "HAR + Lag 2 相对原始 HAR 的 MAE 改进："
+        "HAR + Lag 2 MAE improvement over standard HAR: "
         f"{relative_improvement(har_mae, lag2_mae):.2%}"
     )
 
@@ -130,7 +130,7 @@ def run_final_test():
         feature_names=selected_features,
         output_dir=OUTPUT_DIR,
         model_name=selected_model_name,
-        target_name="下一交易日对数实现波动率（target）",
+        target_name="next-trading-day log realized variance (target)",
         training_info={
             "dataset": "training + validation",
             "n_rows": int(len(development_data)),
@@ -167,16 +167,16 @@ def run_final_test():
         },
     )
 
-    print("\n模型文件已保存：")
+    print("\nModel saved:")
     print(saved_paths["model"])
-    print("模型信息已保存：")
+    print("Model metadata saved:")
     print(saved_paths["model_info"])
 
     run_ljung_box_tests(
         y_true=y_test,
         y_pred=selected_prediction,
         lags=(5, 10, 20, 30),
-        model_name="HAR + Lag 2（最终测试集）",
+        model_name="HAR + Lag 2 (final test)",
     )
 
     plot_final_test_comparison(

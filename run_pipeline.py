@@ -37,7 +37,7 @@ def run_stage(stage: str, interactive_plots: bool = False) -> None:
     for script_name in STAGE_SCRIPTS[stage]:
         script_path = CODE_DIR / script_name
         print(f"\n{'=' * 72}", flush=True)
-        print(f"运行阶段：{script_name}", flush=True)
+        print(f"Running stage: {script_name}", flush=True)
         print(f"{'=' * 72}", flush=True)
         subprocess.run(
             [sys.executable, str(script_path)],
@@ -49,18 +49,18 @@ def run_stage(stage: str, interactive_plots: bool = False) -> None:
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="运行 HAR-RV 波动率预测项目的指定阶段。"
+        description="Run one stage of the HAR-RV volatility forecasting project."
     )
     parser.add_argument(
         "--stage",
         choices=STAGE_SCRIPTS,
         default="all",
-        help="选择运行阶段；默认运行完整流程。",
+        help="Select a stage; the default runs the complete pipeline.",
     )
     parser.add_argument(
         "--interactive-plots",
         action="store_true",
-        help="显示 Matplotlib 窗口；默认使用无界面模式。",
+        help="Display Matplotlib windows; the default uses a headless backend.",
     )
     return parser.parse_args()
 

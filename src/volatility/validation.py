@@ -13,30 +13,31 @@ def chronological_split(
     val_end = int(n_dates * (train_ratio + val_ratio))
 
     if not (0 < train_end < val_end < n_dates):
-        raise ValueError("日期数量不足，无法划分三个非空区间。")
+        raise ValueError("Not enough dates to create three non-empty periods.")
 
     val_start = dates[train_end]
     test_start = dates[val_end]
 
-    # 3. 训练集：特征日期、目标日期都早于验证期
+    # Training set: both feature and target dates precede validation.
     train_df = df.loc[
         (df["date"] < val_start)
         & (df["target_date"] < val_start)
     ].copy()
 
-    # 4. 验证集：特征日期位于验证期，目标不能进入测试期
+    # Validation set: feature dates are in validation and targets stay
+    # outside the test period.
     val_df = df.loc[
         (df["date"] >= val_start)
         & (df["date"] < test_start)
         & (df["target_date"] < test_start)
     ].copy()
 
-    # 5. 测试集：最后一段日期
+    # Test set: the final chronological period.
     test_df = df.loc[
         df["date"] >= test_start
     ].copy()
 
     if any(part.empty for part in (train_df, val_df, test_df)):
-        raise ValueError("边界处理后存在空数据集，请调整划分比例。")
+        raise ValueError("A split is empty after boundary checks; adjust the ratios.")
 
     return train_df, val_df, test_df

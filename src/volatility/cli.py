@@ -16,7 +16,7 @@ if __name__ == "__main__":
         end_date=train_df["date"].max(),
     )
 
-    print("\n训练期市场统计：")
+    print("\nTraining-period market statistics:")
     print(summary.to_string())
 
     plot_return_diagnostics(

@@ -24,7 +24,7 @@ def describe_market(
 
     missing_symbols = set(symbols) - set(df["Symbol"].unique())
     if missing_symbols:
-        raise ValueError(f"没有找到这些指数：{sorted(missing_symbols)}")
+        raise ValueError(f"Symbols not found: {sorted(missing_symbols)}")
 
     df = df.rename(columns={"Unnamed: 0": "date"})
     df["date"] = pd.to_datetime(df["date"], utc=True)
@@ -71,13 +71,14 @@ def plot_return_diagnostics(
     ].copy()
 
     if df.empty:
-        raise ValueError(f"没有找到指数代码：{symbol}")
+        raise ValueError(f"Symbol not found: {symbol}")
 
     df = df.rename(columns={"Unnamed: 0": "date"})
     df["date"] = pd.to_datetime(df["date"], utc=True)
     df = df.sort_values("date")
 
-    # 只分析训练期，避免利用验证集和测试集设计模型
+    # Use training data only so validation and test observations do not
+    # influence model design.
     df = df.loc[df["date"] <= end_date].copy()
 
     returns = pd.to_numeric(
@@ -87,7 +88,7 @@ def plot_return_diagnostics(
     returns = returns.replace([np.inf, -np.inf], np.nan).dropna()
 
     if returns.empty:
-        raise ValueError(f"{symbol} 没有可用的收益率数据")
+        raise ValueError(f"No valid return observations for {symbol}")
 
     mean_return = returns.mean()
     std_return = returns.std()
@@ -98,7 +99,7 @@ def plot_return_diagnostics(
         figsize=(12, 8),
     )
 
-    # 1. 收益率直方图与拟合的正态密度
+    # 1. Return histogram and fitted normal density.
     axes[0, 0].hist(
         returns,
         bins=60,
@@ -132,7 +133,7 @@ def plot_return_diagnostics(
     axes[0, 0].set_xlabel("Open-to-close return")
     axes[0, 0].legend()
 
-    # 2. 正态 Q-Q 图
+    # 2. Normal Q-Q plot.
     stats.probplot(
         returns,
         dist="norm",
@@ -140,7 +141,7 @@ def plot_return_diagnostics(
     )
     axes[0, 1].set_title("Normal Q-Q plot")
 
-    # 3. 原始收益率的自相关
+    # 3. Autocorrelation of raw returns.
     plot_acf(
         returns,
         lags=lags,
@@ -149,7 +150,7 @@ def plot_return_diagnostics(
     )
     axes[1, 0].set_title("ACF of returns")
 
-    # 4. 平方收益率的自相关
+    # 4. Autocorrelation of squared returns.
     plot_acf(
         returns.pow(2),
         lags=lags,
@@ -177,20 +178,20 @@ def plot_residual_diagnostics(
     predicted_values = np.asarray(y_pred, dtype=float)
 
     if true_values.shape != predicted_values.shape:
-        raise ValueError("真实值和预测值长度不一致")
+        raise ValueError("Actual and predicted values have different lengths")
 
     residuals = pd.Series(true_values - predicted_values).dropna()
     if residuals.empty:
-        raise ValueError("没有可用于分析的残差")
+        raise ValueError("No residuals are available for analysis")
 
     max_lags = min(lags, len(residuals) // 2 - 1)
     if max_lags < 1:
-        raise ValueError("残差数量不足，无法计算 ACF")
+        raise ValueError("Not enough residuals to calculate the ACF")
 
-    print(f"\n{model_name} {sample_name} 残差统计：")
-    print(f"样本数量：{len(residuals)}")
-    print(f"残差均值：{residuals.mean():.6f}")
-    print(f"残差标准差：{residuals.std():.6f}")
+    print(f"\n{model_name} {sample_name} residual statistics:")
+    print(f"Observations: {len(residuals)}")
+    print(f"Mean residual: {residuals.mean():.6f}")
+    print(f"Residual standard deviation: {residuals.std():.6f}")
 
     fig, axes = plt.subplots(
         2,
@@ -247,29 +248,29 @@ def plot_final_test_comparison(
     predictions: dict,
     result_table: pd.DataFrame,
 ):
-    """展示最终测试期预测轨迹以及各模型的误差指标。"""
+    """Plot final-test predictions and model error metrics."""
     required_columns = {"target_date", "target"}
     missing_columns = required_columns - set(test_data.columns)
     if missing_columns:
         raise ValueError(
-            f"测试数据缺少列：{sorted(missing_columns)}"
+            f"Test data is missing columns: {sorted(missing_columns)}"
         )
 
     if not predictions:
-        raise ValueError("至少需要提供一个模型的预测值")
+        raise ValueError("At least one model prediction is required")
 
     n_observations = len(test_data)
     for model_name, values in predictions.items():
         if len(values) != n_observations:
             raise ValueError(
-                f"{model_name} 的预测长度与测试集不一致"
+                f"{model_name} prediction length does not match the test set"
             )
 
     metric_columns = ["mse", "mae"]
     missing_metrics = set(metric_columns) - set(result_table.columns)
     if missing_metrics:
         raise ValueError(
-            f"结果表缺少指标：{sorted(missing_metrics)}"
+            f"Result table is missing metrics: {sorted(missing_metrics)}"
         )
 
     dates = pd.to_datetime(test_data["target_date"])
@@ -300,7 +301,7 @@ def plot_final_test_comparison(
 
     axes[0].set_title("Final test: actual vs predicted log RV")
     axes[0].set_xlabel("Target date")
-    axes[0].set_ylabel("Log realized volatility")
+    axes[0].set_ylabel("Log realized variance")
     axes[0].legend(ncol=2)
     axes[0].grid(alpha=0.2)
 
@@ -351,11 +352,11 @@ def run_ljung_box_tests(
     predicted_values = np.asarray(y_pred, dtype=float)
 
     if true_values.shape != predicted_values.shape:
-        raise ValueError("真实值和预测值长度不一致")
+        raise ValueError("Actual and predicted values have different lengths")
 
     residuals = pd.Series(true_values - predicted_values).dropna()
     if residuals.empty:
-        raise ValueError("没有可用于 Ljung-Box 检验的残差")
+        raise ValueError("No residuals are available for the Ljung-Box test")
 
     valid_lags = [
         lag
@@ -363,7 +364,7 @@ def run_ljung_box_tests(
         if 0 < lag < len(residuals)
     ]
     if not valid_lags:
-        raise ValueError("没有适合当前残差长度的 Ljung-Box 滞后期")
+        raise ValueError("No Ljung-Box lag is valid for this residual sample")
 
     residual_test = acorr_ljungbox(
         residuals,
@@ -376,14 +377,14 @@ def run_ljung_box_tests(
         return_df=True,
     )
 
-    print(f"\n{model_name} 残差 Ljung-Box 检验：")
+    print(f"\n{model_name} residual Ljung-Box test:")
     print(
         residual_test.to_string(
             float_format=lambda value: f"{value:.6f}"
         )
     )
 
-    print(f"\n{model_name} 平方残差 Ljung-Box 检验：")
+    print(f"\n{model_name} squared-residual Ljung-Box test:")
     print(
         squared_residual_test.to_string(
             float_format=lambda value: f"{value:.6f}"
@@ -412,7 +413,9 @@ def plot_lag_feature_evidence(
         == base_values.shape
         == candidate_values.shape
     ):
-        raise ValueError("真实值和两个模型的预测值长度必须一致")
+        raise ValueError(
+            "Actual values and both model predictions must have equal lengths"
+        )
 
     base_residuals = pd.Series(true_values - base_values).dropna()
     candidate_residuals = pd.Series(
@@ -425,7 +428,7 @@ def plot_lag_feature_evidence(
         len(candidate_residuals) // 2 - 1,
     )
     if max_lags < 1:
-        raise ValueError("残差数量不足，无法生成 Lag 证据图")
+        raise ValueError("Not enough residuals to create the lag evidence plot")
 
     fold_mse = (
         cv_results.loc[
@@ -440,7 +443,7 @@ def plot_lag_feature_evidence(
 
     required_models = {base_model_name, candidate_model_name}
     if not required_models.issubset(fold_mse.columns):
-        raise ValueError("交叉验证结果缺少需要比较的模型")
+        raise ValueError("Cross-validation results are missing a comparison model")
 
     fold_improvement = (
         fold_mse[base_model_name]
@@ -454,7 +457,7 @@ def plot_lag_feature_evidence(
         and lag < len(candidate_residuals)
     ]
     if not valid_lags:
-        raise ValueError("没有适合当前残差长度的 Ljung-Box 滞后期")
+        raise ValueError("No Ljung-Box lag is valid for this residual sample")
 
     tests = {
         f"{base_model_name} residual": acorr_ljungbox(
@@ -481,7 +484,7 @@ def plot_lag_feature_evidence(
 
     evidence_table = fold_mse.copy()
     evidence_table["candidate_improvement"] = fold_improvement
-    print("\nLag 特征逐折证据：")
+    print("\nFold-level evidence for the lag feature:")
     print(
         evidence_table.to_string(
             formatters={

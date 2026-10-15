@@ -20,11 +20,11 @@ PREDICTION_PATH = OUTPUT_DIR / "predictions.csv"
 def _load_model_bundle():
     if not MODEL_PATH.exists():
         raise FileNotFoundError(
-            f"没有找到模型文件，请先运行 final_test.py：{MODEL_PATH}"
+            f"Model file not found; run final_test.py first: {MODEL_PATH}"
         )
     if not MODEL_INFO_PATH.exists():
         raise FileNotFoundError(
-            f"没有找到模型信息文件：{MODEL_INFO_PATH}"
+            f"Model metadata file not found: {MODEL_INFO_PATH}"
         )
 
     model = joblib.load(MODEL_PATH)
@@ -33,23 +33,23 @@ def _load_model_bundle():
 
     feature_names = model_info.get("feature_order")
     if not feature_names:
-        raise ValueError("模型信息中缺少 feature_order。")
+        raise ValueError("Model metadata is missing feature_order.")
 
     if model.n_features_in_ != len(feature_names):
-        raise ValueError("模型特征数量与模型信息不一致。")
+        raise ValueError("Model feature count does not match the metadata.")
 
     trained_feature_names = getattr(model, "feature_names_in_", None)
     if (
         trained_feature_names is not None
         and list(trained_feature_names) != feature_names
     ):
-        raise ValueError("模型内部特征顺序与模型信息不一致。")
+        raise ValueError("Model feature order does not match the metadata.")
 
     return model, model_info, feature_names
 
 
 def _save_prediction(result: pd.DataFrame) -> None:
-    """保存预测历史；同一模型对同一特征日期重复运行时更新旧记录。"""
+    """Save history and update duplicate runs for the same model and date."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     if PREDICTION_PATH.exists():
@@ -76,7 +76,7 @@ def run_prediction(symbol: str = ".SPX") -> pd.DataFrame:
     X_latest = latest_row.loc[:, feature_names]
 
     if X_latest.isna().any().any():
-        raise ValueError("最新记录存在缺失特征，无法预测。")
+        raise ValueError("The latest observation has missing prediction features.")
 
     predicted_log_rv = float(model.predict(X_latest)[0])
     predicted_rv = float(np.exp(predicted_log_rv))
@@ -105,11 +105,11 @@ def run_prediction(symbol: str = ".SPX") -> pd.DataFrame:
 
     _save_prediction(result)
 
-    print("\n本次预测使用的特征：")
+    print("\nFeatures used for this prediction:")
     print(X_latest.to_string(index=False))
-    print("\n预测结果：")
+    print("\nPrediction:")
     print(result.to_string(index=False))
-    print(f"\n预测记录已保存：{PREDICTION_PATH}")
+    print(f"\nPrediction history saved: {PREDICTION_PATH}")
 
     return result
 

@@ -22,7 +22,7 @@ def save_model_artifacts(
     training_info,
     evaluation_info,
 ):
-    """保存可加载的模型，以及便于审阅和复现的模型信息。"""
+    """Save a loadable model and metadata for review and reproducibility."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
