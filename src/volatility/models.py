@@ -58,5 +58,3 @@ def save_model_artifacts(
         "model": model_path,
         "model_info": info_path,
     }
-
-

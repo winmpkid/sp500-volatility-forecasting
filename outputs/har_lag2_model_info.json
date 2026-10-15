@@ -2,7 +2,7 @@
   "schema_version": 1,
   "model_name": "HAR + Lag 2",
   "model_type": "LinearRegression",
-  "saved_at_utc": "2026-10-13T02:35:16.214533+00:00",
+  "saved_at_utc": "2026-10-15T02:15:03.870263+00:00",
   "target": "下一交易日对数实现波动率（target）",
   "feature_order": [
     "log_rv_day",

@@ -1,11 +1,11 @@
-# Local and generated files
 .DS_Store
 .vscode/
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.coverage
+.cache/
 .venv/
 venv/
+env/
 ~$*
-项目报告.docx
-# Unzip the included archive locally before running
-datasets/*.csv
